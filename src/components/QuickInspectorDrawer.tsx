@@ -122,6 +122,7 @@ export default function QuickInspectorDrawer({
   const { success, error } = useToast();
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [triageLoading, setTriageLoading] = useState(false);
   const [stageUpdating, setStageUpdating] = useState(false);
   const [savingVal, setSavingVal] = useState(false);
@@ -145,10 +146,16 @@ export default function QuickInspectorDrawer({
 
   const loadData = useCallback(async (id: string) => {
     setLoading(true);
+    setFetchError(null);
     try {
       const res = await fetch(`/api/requests/${id}`);
-      if (!res.ok) throw new Error("Failed to load details");
+      if (!res.ok) {
+        throw new Error(`Failed to load details (status ${res.status})`);
+      }
       const d: DetailData = await res.json();
+      if (!d || !d.id) {
+        throw new Error("Feedback signal not found in database.");
+      }
       setData(d);
       setEditCategory(d.category || "feature_request");
       setEditPriority(d.priority || "medium");
@@ -167,17 +174,18 @@ export default function QuickInspectorDrawer({
         setValFeedback("");
       }
     } catch (e: any) {
-      error("Error loading feedback item", e.message);
+      setFetchError(e.message || "Failed to load signal details");
     } finally {
       setLoading(false);
     }
-  }, [error]);
+  }, []);
 
   useEffect(() => {
     if (itemId) {
       loadData(itemId);
     } else {
       setData(null);
+      setFetchError(null);
     }
   }, [itemId, loadData]);
 
@@ -378,10 +386,21 @@ export default function QuickInspectorDrawer({
         </div>
 
         {/* Content Body with Mobile Safe Bottom Padding */}
-        {loading || !data ? (
+        {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-[#536E67]">
             <Loader2 className="w-8 h-8 animate-spin text-[#235347] mb-3" />
             <span className="text-sm font-medium">Loading feedback signal...</span>
+          </div>
+        ) : fetchError || !data ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center text-[#536E67]">
+            <p className="text-sm font-bold text-[#051F20] mb-1">Could not load signal details</p>
+            <p className="text-xs text-[#84A39B] mb-4">{fetchError || "Item data not found."}</p>
+            <button
+              onClick={() => itemId && loadData(itemId)}
+              className="px-4 py-2 rounded-full bg-[#051F20] text-[#DAF1DE] text-xs font-bold hover:bg-[#0B2B26] transition-all cursor-pointer shadow-xs"
+            >
+              Retry Loading
+            </button>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-28 md:pb-8 space-y-5 sm:space-y-6">

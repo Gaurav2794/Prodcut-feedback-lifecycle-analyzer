@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 
@@ -61,8 +61,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const info = useCallback((title: string, message?: string) => addToast({ title, message, type: "info" }), [addToast]);
   const warning = useCallback((title: string, message?: string) => addToast({ title, message, type: "warning" }), [addToast]);
 
+  const contextValue = useMemo(
+    () => ({ toast: addToast, success, error, info, warning }),
+    [addToast, success, error, info, warning]
+  );
+
   return (
-    <ToastContext.Provider value={{ toast: addToast, success, error, info, warning }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
         <AnimatePresence>
@@ -99,7 +104,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </div>
                 <button
                   onClick={() => removeToast(t.id)}
-                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md transition-colors"
+                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
