@@ -33,9 +33,12 @@ const LIFECYCLE_LABELS: Record<string,string> = {
   shipped:"6. Shipped & Validated" 
 };
 
+import { useToast } from "@/components/Toast";
+
 export default function FeedbackDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { success, error } = useToast();
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [triageLoading, setTriageLoading] = useState(false);
@@ -78,61 +81,85 @@ export default function FeedbackDetailPage() {
   const runTriage = async () => {
     setTriageLoading(true);
     setAppliedSuccess(false);
-    await fetch("/api/triage", { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ request_id: id }) 
-    });
-    await load();
-    setTriageLoading(false);
+    try {
+      const res = await fetch("/api/triage", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ request_id: id }) 
+      });
+      if (!res.ok) throw new Error("Triage failed");
+      success("AI Triage Analysis Complete", "Gemini evaluated customer signals");
+      await load();
+    } catch (e: any) {
+      error("Triage Error", e.message);
+    } finally {
+      setTriageLoading(false);
+    }
   };
 
   const acceptTriage = async () => {
     if (!data?.triage) return;
     const t = data.triage;
-    await fetch(`/api/requests/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        category: t.suggested_category, 
-        product_area: t.suggested_product_area, 
-        priority: t.suggested_priority, 
-        owner: t.suggested_owner, 
-        summary: t.suggested_summary 
-      })
-    });
-    setAppliedSuccess(true);
-    setTimeout(() => setAppliedSuccess(false), 3000);
-    await load();
+    try {
+      await fetch(`/api/requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          category: t.suggested_category, 
+          product_area: t.suggested_product_area, 
+          priority: t.suggested_priority, 
+          owner: t.suggested_owner, 
+          summary: t.suggested_summary 
+        })
+      });
+      setAppliedSuccess(true);
+      success("AI Recommendations Applied", "Categorization, owner, and priority updated.");
+      setTimeout(() => setAppliedSuccess(false), 3000);
+      await load();
+    } catch (e: any) {
+      error("Failed to apply recommendation", e.message);
+    }
   };
 
   const saveChanges = async () => {
     setStageSaving(true);
-    await fetch(`/api/requests/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: editStage, category: editCategory, priority: editPriority, owner: editOwner })
-    });
-    await load();
-    setStageSaving(false);
+    try {
+      await fetch(`/api/requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: editStage, category: editCategory, priority: editPriority, owner: editOwner })
+      });
+      success("Lifecycle Changes Saved", `Updated stage to ${editStage.toUpperCase()}`);
+      await load();
+    } catch (e: any) {
+      error("Save failed", e.message);
+    } finally {
+      setStageSaving(false);
+    }
   };
 
   const saveValidation = async () => {
     setValSaving(true);
-    await fetch("/api/validation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        request_id: id, 
-        status: valStatus, 
-        customer_tried: valTried, 
-        satisfied: valSatisfied, 
-        feedback_text: valFeedback, 
-        follow_up_needed: valFollowUp 
-      })
-    });
-    await load();
-    setValSaving(false);
+    try {
+      await fetch("/api/validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          request_id: id, 
+          status: valStatus, 
+          customer_tried: valTried, 
+          satisfied: valSatisfied, 
+          feedback_text: valFeedback, 
+          follow_up_needed: valFollowUp 
+        })
+      });
+      success("Validation Record Saved", "Customer adoption verification updated.");
+      await load();
+    } catch (e: any) {
+      error("Validation save failed", e.message);
+    } finally {
+      setValSaving(false);
+    }
   };
 
   if (loading) return (
